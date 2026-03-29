@@ -471,3 +471,4 @@ export default function App() {
   );
 
   return user ? <Dashboard user={user} onLogout={handleLogout} /> : <LoginPage />;
+}
