@@ -13,12 +13,17 @@ app.use(
     credentials: true,
   })
 );
+app.set("trust proxy", 1);
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "your-secret-key",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }, // 1 day
+    cookie: {
+      secure: true,
+      sameSite: "none",
+      maxAge: 24 * 60 * 60 * 1000,
+    },
   })
 );
 
@@ -26,7 +31,7 @@ app.use(
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || "http://localhost:3001/auth/callback"
+  process.env.GOOGLE_REDIRECT_URI || "https://ssmda2026.onrender.com/auth/callback"
 );
 
 const SCOPES = [
@@ -63,7 +68,11 @@ app.get("/auth/callback", async (req, res) => {
       picture: userInfo.picture,
     };
 
-    res.redirect(process.env.FRONTEND_URL || "http://localhost:5173");
+    // Save session before redirecting
+    req.session.save((err) => {
+      if (err) console.error("Session save error:", err);
+      res.redirect(process.env.FRONTEND_URL || "http://localhost:5173");
+    });
   } catch (err) {
     console.error("OAuth callback error:", err);
     res.redirect(
@@ -135,7 +144,7 @@ app.get("/api/emails", requireAuth, async (req, res) => {
   }
 });
 
-// ─── SUMMARIZE using Gemini 1.5 Flash ────────────────────────────────────────
+// ─── SUMMARIZE ────────────────────────────────────────────────────────────────
 
 app.get("/api/emails/:id/summarize", requireAuth, async (req, res) => {
   try {
@@ -146,7 +155,6 @@ app.get("/api/emails/:id/summarize", requireAuth, async (req, res) => {
       format: "full",
     });
 
-    // Extract plain text body
     let body = "";
     const parts = detail.data.payload.parts || [];
     for (const part of parts) {
@@ -156,20 +164,16 @@ app.get("/api/emails/:id/summarize", requireAuth, async (req, res) => {
       }
     }
     if (!body && detail.data.payload.body?.data) {
-      body = Buffer.from(detail.data.payload.body.data, "base64").toString(
-        "utf-8"
-      );
+      body = Buffer.from(detail.data.payload.body.data, "base64").toString("utf-8");
     }
 
     if (!body) {
       return res.json({ summary: "No readable content found in this email." });
     }
 
-    // ✅ Fixed: use gemini-1.5-flash instead of deprecated gemini-pro
     const { GoogleGenerativeAI } = require("@google/generative-ai");
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const result = await model.generateContent(
       `Summarize this email in 2-3 sentences:\n\n${body.substring(0, 3000)}`
