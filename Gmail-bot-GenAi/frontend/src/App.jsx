@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-const API = "http://localhost:3001";
+const API = "https://ssmda2026.onrender.com";
 
 // ─── Inject styles once ───────────────────────────────────────────────────────
 const css = `
@@ -471,4 +471,3 @@ export default function App() {
   );
 
   return user ? <Dashboard user={user} onLogout={handleLogout} /> : <LoginPage />;
-}
